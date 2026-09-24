@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body { @apply bg-white font-sans text-ink-900 antialiased; }
+  :focus-visible { outline: 2px solid #00897b; outline-offset: 2px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+@layer utilities {
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+/* Recharts: sem contorno de foco em áreas de SVG clicadas com mouse */
+.recharts-wrapper svg:focus, .recharts-surface:focus { outline: none; }
