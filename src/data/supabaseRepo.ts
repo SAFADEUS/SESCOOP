@@ -37,15 +37,24 @@ export function normalizeIds(ev: SandboxEvent): SandboxEvent {
   return out;
 }
 
-async function must<T>(p: PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> {
+type PgError = { message: string; details?: string | null; hint?: string | null; code?: string };
+async function must<T>(p: PromiseLike<{ data: T; error: PgError | null }>): Promise<T> {
   const { data, error } = await p;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error([error.message, error.details, error.hint].filter(Boolean).join(" — ") || `erro ${error.code ?? "desconhecido"}`);
   return data;
 }
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export function createSupabaseRepo(sb: SupabaseClient): Repo {
+  /** Remove as linhas do evento que não estão em `keep` (em lotes; evita URLs gigantes com NOT IN). */
+  const deleteMissing = async (table: string, eventId: string, keep: string[]) => {
+    const keepSet = new Set(keep);
+    const existing = (await must(sb.from(table).select("id").eq("event_id", eventId))) as Row[];
+    const drop = existing.map((r) => r.id as string).filter((id) => !keepSet.has(id));
+    for (let i = 0; i < drop.length; i += 100) await must(sb.from(table).delete().in("id", drop.slice(i, i + 100)));
+  };
+
   let orgCache: string | null = null;
   const currentOrg = async (): Promise<string> => {
     if (orgCache) return orgCache;
@@ -62,7 +71,11 @@ export function createSupabaseRepo(sb: SupabaseClient): Repo {
     kind: "supabase",
     async listEvents() {
       const rows = await must(
-        sb.from("events").select("id,name,status,sandbox,scenario_key,updated_at,participants(count),participant_preferences(count),optimization_runs(count)").order("updated_at", { ascending: false }),
+        sb
+          .from("events")
+          .select(
+            "id,name,status,sandbox,scenario_key,updated_at,participants!participants_event_id_fkey(count),participant_preferences!participant_preferences_event_id_fkey(count),optimization_runs!optimization_runs_event_id_fkey(count)",
+          ).order("updated_at", { ascending: false }),
       );
       return (rows as Row[]).map(
         (r): EventSummary => ({
@@ -246,7 +259,7 @@ export function createSupabaseRepo(sb: SupabaseClient): Repo {
             }),
           ),
         );
-      await must(sb.from("event_tables").delete().eq("event_id", ev.id).not("id", "in", `(${tIds.join(",") || "00000000-0000-0000-0000-000000000000"})`));
+      await deleteMissing("event_tables", ev.id, tIds);
       // Participantes
       const pIds = ev.input.participants.map((p) => p.id);
       if (pIds.length)
@@ -273,7 +286,7 @@ export function createSupabaseRepo(sb: SupabaseClient): Repo {
             })),
           ),
         );
-      await must(sb.from("participants").delete().eq("event_id", ev.id).not("id", "in", `(${pIds.join(",") || "00000000-0000-0000-0000-000000000000"})`));
+      await deleteMissing("participants", ev.id, pIds);
       // Disponibilidade (somente exceções)
       await must(sb.from("participant_availability").delete().eq("event_id", ev.id));
       const availRows: Row[] = [];
@@ -285,7 +298,7 @@ export function createSupabaseRepo(sb: SupabaseClient): Repo {
       if (availRows.length) await must(sb.from("participant_availability").insert(availRows));
       // Preferências
       const prIds = ev.input.preferences.map((p) => p.id);
-      await must(sb.from("participant_preferences").delete().eq("event_id", ev.id).not("id", "in", `(${prIds.join(",") || "00000000-0000-0000-0000-000000000000"})`));
+      await deleteMissing("participant_preferences", ev.id, prIds);
       for (let i = 0; i < ev.input.preferences.length; i += 500)
         await must(
           sb.from("participant_preferences").upsert(

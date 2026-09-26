@@ -1,0 +1,3 @@
+# Configuração mínima do Supabase CLI para as Edge Functions deste projeto.
+[functions.optimizer]
+verify_jwt = true

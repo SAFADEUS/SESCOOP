@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "vitest run",
-    "simulate": "tsx scripts/simulate.ts"
+    "simulate": "tsx scripts/simulate.ts",
+    "sync:engine": "node scripts/sync-engine.mjs",
+    "check:engine": "node scripts/sync-engine.mjs --check",
+    "test:sql": "bash supabase/tests/run.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
