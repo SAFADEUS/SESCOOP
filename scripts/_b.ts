@@ -1,0 +1,13 @@
+import { generateScenario, optimizeEvent, compileProblem, explainHub } from "../src/engine/index.ts";
+const b = generateScenario("B_ESTRELA", 1);
+const it = Number(process.argv[2] ?? 40000);
+const r = optimizeEvent(b.input, { mode: "MNBD_V2", baseSeed: 1, seeds: 2, iterations: it });
+const P = compileProblem(b.input);
+const star = b.input.participants[0].id;
+const rows = explainHub(P, r.schedule, star);
+const req = new Set(rows.map((x) => x.requesterId));
+console.log("met", rows.filter((x) => x.met).length, "rep", r.metrics.repeats);
+r.schedule.forEach((sess, s) => { const t = sess.find((m) => m.includes(star))!; console.log(s + 1, t.filter((id) => id !== star).map((id) => (req.has(id) ? "R" : "-") ).join("")); });
+const star2 = r.metrics.perParticipant[0]; console.log("star own sat", star2.satisfaction, star2.requested);
+const own = new Set(b.input.preferences.filter((p) => p.sourceId === star).map((p) => p.targetId));
+r.schedule.forEach((sess, s) => { const t = sess.find((m) => m.includes(star))!; console.log(s + 1, t.filter((id) => id !== star).map((id) => (req.has(id) ? "R" : own.has(id) ? "O" : "-") ).join("")); });
