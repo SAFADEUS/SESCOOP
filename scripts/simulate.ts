@@ -10,8 +10,6 @@ for (const sc of SCENARIOS) {
   const b = generateScenario(sc.key, 1);
   console.log(`\n=== ${sc.label} — ${b.input.participants.length} participantes, ${b.input.preferences.length} preferências ===`);
   for (const n of b.notes) console.log("  " + n);
-  const over = b.input.preferences.length;
-  void over;
   for (const mode of ["BASELINE", "MNBD_V2"] as const) {
     const r = optimizeEvent(b.input, { mode, baseSeed: 1, seeds, iterations });
     const m = r.metrics;
@@ -29,6 +27,4 @@ for (const sc of SCENARIOS) {
       for (const i of r2.feasibility.filter((x) => x.severity !== "INFO")) console.log("   -", i.severity, i.message);
     }
   }
-  const demand = generateScenario(sc.key, 1);
-  void demand;
 }

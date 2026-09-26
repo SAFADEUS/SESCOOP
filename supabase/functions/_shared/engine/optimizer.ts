@@ -314,9 +314,23 @@ function buildMnbdSession(st: State, s: number, rng: Rng, ctx: MnbdCtx) {
   }
 }
 
-export function construct(P: Problem, rng: Rng, mode: OptimizerMode): State {
+/** Partida a quente: mantém cada pessoa na mesa da programação vigente quando ainda cabe. */
+function placeFromPrevious(st: State) {
+  const P = st.P;
+  if (!P.prev) return;
+  for (let s = P.frozenUntil; s < P.S; s++)
+    for (let p = 0; p < P.n; p++) {
+      const t = P.prev[s][p];
+      if (t < 0 || !P.avail[s][p] || st.tableOf[s][p] >= 0 || !P.tableAvail[s][t]) continue;
+      if (P.countsCap[p] && seatsLeft(st, s, t) <= 0) continue;
+      st.place(s, p, t);
+    }
+}
+
+export function construct(P: Problem, rng: Rng, mode: OptimizerMode, warm = false): State {
   const st = new State(P);
   placePinned(st);
+  if (warm) placeFromPrevious(st);
   if (mode === "BASELINE") {
     for (let s = P.frozenUntil; s < P.S; s++) buildBaselineSession(st, s, rng);
     return st;
@@ -958,7 +972,7 @@ export function hubRepair(st: State, nb: Neighborhood, rng: Rng, lexOf: (st: Sta
   return accepted;
 }
 
-const lexBaselineState = (st: State): number[] => [st.hard, st.repeats, -st.unique, st.P.config.avoidTableRevisit ? st.revisits : 0];
+const lexBaselineState = (st: State): number[] => [st.hard, st.repeats, -st.unique, st.P.config.avoidTableRevisit ? st.revisits : 0, st.moved];
 
 /**
  * FAIRNESS REPAIR (seção 21): foca participantes abaixo do P10, abaixo de 50% ou sem nenhuma
@@ -1053,6 +1067,19 @@ export function fairnessRepair(st: State, nb: Neighborhood, rng: Rng, maxRounds 
 // Orquestração multi-start
 // ---------------------------------------------------------------------------
 
+function countMoved(P: Problem, schedule: ReturnType<State["toSchedule"]>): number {
+  if (!P.prev) return 0;
+  let c = 0;
+  for (let s = P.frozenUntil; s < P.S; s++)
+    (schedule[s] ?? []).forEach((mem, t) => {
+      for (const id of mem) {
+        const p = P.idx.get(id);
+        if (p !== undefined && P.prev![s][p] >= 0 && P.prev![s][p] !== t) c++;
+      }
+    });
+  return c;
+}
+
 export function optimizeEvent(input: EventInput, opts: OptimizeOptions): OptimizationResult {
   const t0 = now();
   const P = compileProblem(input);
@@ -1064,7 +1091,9 @@ export function optimizeEvent(input: EventInput, opts: OptimizeOptions): Optimiz
     const seed = opts.baseSeed + k;
     const ts = now();
     const rng = mulberry32(hashSeed(seed, opts.mode, OPTIMIZER_VERSION));
-    let st = construct(P, rng, opts.mode);
+    // Na reotimização, as seeds pares partem da programação vigente (estabilidade).
+    const warm = !!P.prev && k % 2 === 0;
+    let st = construct(P, rng, opts.mode, warm);
     if (opts.mode === "BASELINE") {
       st = anneal(st, nb, rng, opts.iterations, SPEC_BASELINE);
       conflictRepair(st, nb, lexBaselineState);
@@ -1078,7 +1107,8 @@ export function optimizeEvent(input: EventInput, opts: OptimizeOptions): Optimiz
         st = anneal(st, nb, rng, Math.floor(opts.iterations * 0.6), SPEC_MNBD_REHEAT);
       } else {
         // Estratégia "preferências primeiro" com penalidades progressivas.
-        st = anneal(st, nb, rng, Math.floor(opts.iterations * TUNING.mainShare), SPEC_MNBD);
+        // partida a quente: temperatura inicial menor para não desmontar a programação vigente
+        st = anneal(st, nb, rng, Math.floor(opts.iterations * TUNING.mainShare), warm ? { ...SPEC_MNBD, T0: 30 } : SPEC_MNBD);
         const cycles = Math.max(1, TUNING.cycles);
         const repIt = Math.floor((opts.iterations * TUNING.repeatShare) / cycles);
         const reheatIt = Math.floor((opts.iterations * (1 - TUNING.mainShare - TUNING.repeatShare)) / cycles);
@@ -1102,7 +1132,8 @@ export function optimizeEvent(input: EventInput, opts: OptimizeOptions): Optimiz
     }
     const schedule = st.toSchedule();
     const m = computeMetrics(P, schedule);
-    const lex = opts.mode === "BASELINE" ? lexBaselineFromMetrics(m) : lexFromMetrics(m, P.config.mustMeetPriority);
+    const moved = countMoved(P, schedule);
+    const lex = opts.mode === "BASELINE" ? [...lexBaselineFromMetrics(m), moved] : lexFromMetrics(m, P.config.mustMeetPriority, moved);
     candidates.push({
       seed,
       timeMs: Math.round(now() - ts),

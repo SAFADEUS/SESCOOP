@@ -155,5 +155,6 @@ export function applyIncident(
     tableAvailability,
     frozenUntil: k,
     realizedSchedule: realizeSessions(plan, k, attendance),
+    previousSchedule: plan,
   };
 }

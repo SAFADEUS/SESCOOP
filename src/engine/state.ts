@@ -49,6 +49,7 @@ export class State {
   hubIdle = 0;
   revisits = 0;
   diversity = 0; // soma ponderada de segmentos distintos
+  moved = 0; // (sessão, pessoa) fora da mesa da programação vigente
   ful: Int32Array;
 
   constructor(P: Problem) {
@@ -206,6 +207,8 @@ export class State {
     }
     mem.push(p);
     this.tableOf[s][p] = t;
+    const pv = this.P.prev?.[s][p] ?? -1;
+    if (pv >= 0 && pv !== t) this.moved++;
   }
 
   /** Remove p da sua mesa na sessão s. */
@@ -217,6 +220,8 @@ export class State {
     mem[pos] = mem[mem.length - 1];
     mem.pop();
     this.tableOf[s][p] = -1;
+    const pv = this.P.prev?.[s][p] ?? -1;
+    if (pv >= 0 && pv !== t) this.moved--;
     if (this.P.staff[p]) return;
     for (let x = 0; x < mem.length; x++) {
       const q = mem[x];

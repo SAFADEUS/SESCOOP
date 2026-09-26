@@ -113,6 +113,8 @@ export interface ObjectiveWeights {
   pressuredIdlePenalty: number;
   diversityWeight: number;
   fairnessWeight: number;
+  /** Penalidade por pessoa/sessão que muda de mesa em relação à programação vigente (reotimização). */
+  stabilityWeight: number;
 }
 
 export const DEFAULT_WEIGHTS: ObjectiveWeights = {
@@ -125,6 +127,7 @@ export const DEFAULT_WEIGHTS: ObjectiveWeights = {
   pressuredIdlePenalty: 200,
   diversityWeight: 4,
   fairnessWeight: 400,
+  stabilityWeight: 3,
 };
 
 export const DEFAULT_CONFIG: EventConfig = {
@@ -169,6 +172,11 @@ export interface EventInput {
    */
   frozenUntil?: number;
   realizedSchedule?: Schedule;
+  /**
+   * Programação vigente que está sendo substituída (reotimização). Usada como partida a quente e
+   * como critério de estabilidade: mover o mínimo de pessoas possível (desempate lexicográfico final).
+   */
+  previousSchedule?: Schedule;
 }
 
 export type OptimizerMode = "BASELINE" | "MNBD_V2";
@@ -335,4 +343,5 @@ export const LEX_LABELS = [
   "P8 diversidade (max)",
   "P9 desequilíbrio de ocupação (min)",
   "P10 repetição de mesa física (min)",
+  "P11 pessoas que trocam de mesa vs. programação vigente (min, só na reotimização)",
 ];

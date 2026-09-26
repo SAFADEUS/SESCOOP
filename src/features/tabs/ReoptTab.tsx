@@ -61,6 +61,7 @@ export function ReoptTab() {
       tableAvailability,
       frozenUntil: k,
       realizedSchedule: realized,
+      previousSchedule: base.schedule, // partida a quente + estabilidade (mover o mínimo de pessoas)
     };
   }, [base, ev, absentFrom, lateUntil, closedFrom, cap, k, S]);
 
@@ -111,7 +112,7 @@ export function ReoptTab() {
         status: e.status === "PUBLISHED" ? "RUNNING" : e.status,
         frozenUntil: k,
         attendance,
-        input: { ...input },
+        input: { ...input, previousSchedule: undefined },
       }),
       "imprevistos registrados + sessões congeladas",
       `sessões 1–${k} congeladas. ${summary}`,

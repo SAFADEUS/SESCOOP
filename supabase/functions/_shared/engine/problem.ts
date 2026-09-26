@@ -88,6 +88,8 @@ export interface Problem {
   mustMeetPairs: [number, number][];
   /** Pares MUST_MEET sem nenhuma sessão/mesa viável em comum. */
   mustMeetImpossible: Set<number>; // chave i*n+j (i<j)
+  /** prev[s][p] = mesa na programação vigente (reotimização) ou -1; null se não houver. */
+  prev: Int32Array[] | null;
 }
 
 function pct(x: number): string {
@@ -543,7 +545,26 @@ export function compileProblem(input: EventInput): Problem {
     difficulty,
     mustMeetPairs,
     mustMeetImpossible,
+    prev: buildPrev(),
   };
+
+  function buildPrev(): Int32Array[] | null {
+    const ps = input.previousSchedule;
+    if (!ps) return null;
+    const out: Int32Array[] = [];
+    for (let s = 0; s < S; s++) {
+      const row = new Int32Array(n).fill(-1);
+      if (s >= frozenUntil)
+        (ps[s] ?? []).forEach((mem, t) => {
+          for (const id of mem) {
+            const i = idx.get(id);
+            if (i !== undefined && t < T) row[i] = t;
+          }
+        });
+      out.push(row);
+    }
+    return out;
+  }
 }
 
 interface PlanCtx {

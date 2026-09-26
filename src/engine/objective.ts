@@ -40,10 +40,11 @@ export function lexFromState(st: State): number[] {
     -r9(diversity),
     r9(stdDev(sizes)),
     st.P.config.avoidTableRevisit ? st.revisits : 0,
+    st.moved,
   ];
 }
 
-export function lexFromMetrics(m: Metrics, mustMeetPriority: "HARD" | "AFTER_REPEATS" = "HARD"): number[] {
+export function lexFromMetrics(m: Metrics, mustMeetPriority: "HARD" | "AFTER_REPEATS" = "HARD", moved = 0): number[] {
   return [
     m.hardViolations + (mustMeetPriority === "HARD" ? m.mustMeetUnmetViable : 0),
     m.repeats,
@@ -56,6 +57,7 @@ export function lexFromMetrics(m: Metrics, mustMeetPriority: "HARD" | "AFTER_REP
     -r9(m.diversity),
     r9(m.tableSizeStdDev),
     m.tableRevisits,
+    moved,
   ];
 }
 
@@ -110,7 +112,8 @@ export function mnbdSoft(st: State): number {
     w.avoidPenalty * st.avoidCo -
     (cfg.spreadHighDemand ? w.highDemandClusterPenalty * st.hubCo : 0) -
     (w.pressuredIdlePenalty ?? 0) * st.hubIdle -
-    (cfg.avoidTableRevisit ? w.tableRevisitPenalty * st.revisits : 0)
+    (cfg.avoidTableRevisit ? w.tableRevisitPenalty * st.revisits : 0) -
+    (w.stabilityWeight ?? 0) * st.moved
   );
 }
 
