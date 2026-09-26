@@ -17,6 +17,7 @@ import {
   compileProblem,
   F_ALLOWREPEAT,
   F_AVOID,
+  F_HUBIDLE,
   F_HUBS,
   F_MUSTMEET,
   F_MUSTNOT,
@@ -221,6 +222,7 @@ function buildMnbdSession(st: State, s: number, rng: Rng, ctx: MnbdCtx) {
       if (f & F_SAMECO) g -= sameCoPen;
       if (f & F_AVOID) g -= w.avoidPenalty;
       if (f & F_HUBS && cfg.spreadHighDemand) g -= w.highDemandClusterPenalty * 4;
+      if (f & F_HUBIDLE) g -= (w.pressuredIdlePenalty ?? 0) * 2;
     }
     if (st.segCount[s][t * st.nSeg + P.segment[p]] === 0) g += w.diversityWeight * divPhase;
     if (cfg.avoidTableRevisit && st.tableUse[p * T + t] > 0) g -= w.tableRevisitPenalty;
@@ -839,6 +841,71 @@ export function mustMeetRepair(st: State, nb: Neighborhood, lexOf: (st: State) =
   return accepted;
 }
 
+/**
+ * Reparo "não desperdiçar os muito demandados" (seções 12 e 14): em cada mesa de um participante
+ * sob pressão crítica, tenta trocar quem não tem relação com ele por um solicitante ainda não
+ * atendido (troca direta ou cadeia de 3). Aceita somente melhora lexicográfica — nunca cria
+ * reencontro nem piora satisfação mínima/P10.
+ */
+export function hubRepair(st: State, nb: Neighborhood, rng: Rng, lexOf: (st: State) => number[]): number {
+  const P = st.P;
+  const n = P.n;
+  let cur = lexOf(st);
+  let accepted = 0;
+  const log: MoveLog = [];
+  const tryIt = (): boolean => {
+    const lx = lexOf(st);
+    if (compareLex(lx, cur) < 0) {
+      cur = lx;
+      log.length = 0;
+      accepted++;
+      return true;
+    }
+    undo(st, log);
+    return false;
+  };
+  const pressured = nb.hubs.filter((h) => P.demand[h].demandClass === "CRITICA" || P.demand[h].demandClass === "SOBREDEMANDA");
+  for (const h of pressured) {
+    for (const s of nb.sessions) {
+      if (!P.avail[s][h]) continue;
+      let progress = true;
+      while (progress) {
+        progress = false;
+        const th = st.tableOf[s][h];
+        const idle = st.members[s][th].filter((x) => x !== h && nb.isMovable[s][x] && P.wants[x * n + h] <= 0 && P.wants[h * n + x] <= 0);
+        const pending = nb.requesters[h].filter((r) => st.meet[r * n + h] === 0 && P.avail[s][r] && nb.isMovable[s][r]);
+        outer: for (const x of idle)
+          for (const r of pending) {
+            const tr = st.tableOf[s][r];
+            if (tr < 0 || tr === th) continue;
+            doMove(st, log, s, r, th);
+            doMove(st, log, s, x, tr);
+            if (tryIt()) {
+              progress = true;
+              break outer;
+            }
+            // cadeia: x vai para uma terceira mesa y; alguém de y ocupa o lugar de r
+            for (let k = 0; k < 12; k++) {
+              const y = randInt(rng, P.T);
+              if (y === th || y === tr || st.members[s][y].length === 0) continue;
+              const zs = st.members[s][y].filter((z) => nb.isMovable[s][z]);
+              if (!zs.length) continue;
+              const z = zs[randInt(rng, zs.length)];
+              doMove(st, log, s, r, th);
+              doMove(st, log, s, x, y);
+              doMove(st, log, s, z, tr);
+              if (tryIt()) {
+                progress = true;
+                break outer;
+              }
+            }
+          }
+      }
+    }
+  }
+  return accepted;
+}
+
 const lexBaselineState = (st: State): number[] => [st.hard, st.repeats, -st.unique, st.P.config.avoidTableRevisit ? st.revisits : 0];
 
 /**
@@ -965,6 +1032,7 @@ export function optimizeEvent(input: EventInput, opts: OptimizeOptions): Optimiz
     if (opts.mode === "MNBD_V2") {
       conflictRepair(st, nb, lexFromState);
       if (st.mustMeetUnmet > 0) mustMeetRepair(st, nb, lexFromState);
+      hubRepair(st, nb, rng, lexFromState);
       lexPolish(st, nb, rng, Math.max(500, Math.floor(opts.iterations / 10)));
       if (opts.fairnessRepair !== false) fairnessRepair(st, nb, rng);
     }

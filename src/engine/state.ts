@@ -4,6 +4,7 @@
 import {
   F_ALLOWREPEAT,
   F_AVOID,
+  F_HUBIDLE,
   F_HUBS,
   F_MUSTMEET,
   F_MUSTNOT,
@@ -45,6 +46,7 @@ export class State {
   sameCoS0 = 0;
   avoidCo = 0;
   hubCo = 0;
+  hubIdle = 0;
   revisits = 0;
   diversity = 0; // soma ponderada de segmentos distintos
   ful: Int32Array;
@@ -111,6 +113,7 @@ export class State {
         if (s === 0) this.sameCoS0++;
       }
       if (f & F_HUBS) this.hubCo++;
+      if (f & F_HUBIDLE) this.hubIdle++;
     }
     if (c === 0) {
       this.unique++;
@@ -148,6 +151,7 @@ export class State {
         if (s === 0) this.sameCoS0--;
       }
       if (f & F_HUBS) this.hubCo--;
+      if (f & F_HUBIDLE) this.hubIdle--;
     }
     if (c === 1) {
       this.unique--;

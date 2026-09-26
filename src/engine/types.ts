@@ -109,6 +109,8 @@ export interface ObjectiveWeights {
   sameCompanyPenalty: number;
   tableRevisitPenalty: number;
   highDemandClusterPenalty: number;
+  /** Penalidade por assento "ocioso" ao lado de um sobredemandado/crítico (seção 14). */
+  pressuredIdlePenalty: number;
   diversityWeight: number;
   fairnessWeight: number;
 }
@@ -120,6 +122,7 @@ export const DEFAULT_WEIGHTS: ObjectiveWeights = {
   sameCompanyPenalty: 25,
   tableRevisitPenalty: 1,
   highDemandClusterPenalty: 40,
+  pressuredIdlePenalty: 200,
   diversityWeight: 4,
   fairnessWeight: 400,
 };

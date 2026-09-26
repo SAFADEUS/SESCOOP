@@ -109,6 +109,7 @@ export function mnbdSoft(st: State): number {
     sameCoPen * st.sameCoS0 - // sessão 1: diversidade estruturada pesa em dobro
     w.avoidPenalty * st.avoidCo -
     (cfg.spreadHighDemand ? w.highDemandClusterPenalty * st.hubCo : 0) -
+    (w.pressuredIdlePenalty ?? 0) * st.hubIdle -
     (cfg.avoidTableRevisit ? w.tableRevisitPenalty * st.revisits : 0)
   );
 }

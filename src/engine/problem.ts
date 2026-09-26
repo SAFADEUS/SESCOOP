@@ -47,6 +47,8 @@ export const F_ALLOWREPEAT = 8;
 export const F_MUTUAL = 16;
 export const F_SAMECO = 32;
 export const F_HUBS = 64;
+/** Participante sob pressão crítica (IPD ≥ crítico) sentado com alguém sem relação com ele: assento desperdiçado. */
+export const F_HUBIDLE = 128;
 
 export interface Problem {
   input: EventInput;
@@ -346,6 +348,15 @@ export function compileProblem(input: EventInput): Problem {
       if (b > 0) v += wantWeight[j * n + i] * scarcity(i);
       if (a > 0 && b > 0) v += w.mutualBonus;
       pairValue[i * n + j] = pairValue[j * n + i] = v;
+    }
+  const pressured = (j: number) => demand[j].demandClass === "CRITICA" || demand[j].demandClass === "SOBREDEMANDA";
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++) {
+      if (wants[i * n + j] > 0 || wants[j * n + i] > 0) continue;
+      if (pressured(i) || pressured(j)) {
+        pairFlags[i * n + j] |= F_HUBIDLE;
+        pairFlags[j * n + i] |= F_HUBIDLE;
+      }
     }
   for (let i = 0; i < n; i++)
     for (let j = i + 1; j < n; j++)
